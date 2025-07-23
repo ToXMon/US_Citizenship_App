@@ -259,20 +259,73 @@ const translationService = new TranslationService(VENICE_API_KEY, VENICE_BASE);
 // Test translation service initialization
 console.log('Translation service initialized with European Portuguese support');
 
-// All 100 USCIS Civics Questions (2008 version)
-const questions = [
-  { id: 1, question: 'What is the supreme law of the land?', answer: 'the Constitution' },
-  { id: 2, question: 'What does the Constitution do?', answer: 'sets up the government; defines the government; protects basic rights of Americans' },
-  { id: 3, question: 'The idea of self-government is in the first three words of the Constitution. What are these words?', answer: 'We the People' },
-  { id: 4, question: 'What is an amendment?', answer: 'a change (to the Constitution); an addition (to the Constitution)' },
-  { id: 5, question: 'What do we call the first ten amendments to the Constitution?', answer: 'the Bill of Rights' },
-  { id: 6, question: 'What is one right or freedom from the First Amendment?', answer: 'speech; religion; assembly; press; petition the government' },
-  { id: 7, question: 'How many amendments does the Constitution have?', answer: 'twenty-seven (27)' },
-  { id: 8, question: 'What did the Declaration of Independence do?', answer: 'announced our independence (from Great Britain); declared our independence (from Great Britain); said that the United States is free (from Great Britain)' },
-  { id: 9, question: 'What are two rights in the Declaration of Independence?', answer: 'life; liberty; pursuit of happiness' },
-  { id: 10, question: 'What is freedom of religion?', answer: 'You can practice any religion, or not practice a religion.' },
-  // Remaining questions omitted for brevity
-];
+// Questions array - will be populated from JSON file
+let questions = [];
+
+// Transform question from JSON format to current format
+function transformQuestion(jsonQuestion) {
+  return {
+    id: jsonQuestion.id,
+    question: jsonQuestion.question,
+    answer: jsonQuestion.answers.join('; ')
+  };
+}
+
+// Load all 100 USCIS Civics Questions from JSON file
+async function loadQuestionsFromJSON() {
+  try {
+    console.log('Loading questions from JSON file...');
+    const response = await fetch('./questions.json');
+    
+    if (!response.ok) {
+      throw new Error(`Failed to load questions.json: ${response.status} ${response.statusText}`);
+    }
+    
+    const jsonQuestions = await response.json();
+    
+    // Validate and transform questions
+    const validQuestions = [];
+    for (const jsonQuestion of jsonQuestions) {
+      // Validate required fields
+      if (jsonQuestion.id && jsonQuestion.question && jsonQuestion.answers && Array.isArray(jsonQuestion.answers)) {
+        validQuestions.push(transformQuestion(jsonQuestion));
+      } else {
+        console.warn('Invalid question data:', jsonQuestion);
+      }
+    }
+    
+    if (validQuestions.length === 0) {
+      throw new Error('No valid questions found in JSON file');
+    }
+    
+    console.log(`Successfully loaded ${validQuestions.length} questions from JSON file`);
+    return validQuestions;
+    
+  } catch (error) {
+    console.error('Error loading questions from JSON:', error);
+    
+    // Provide user-friendly error message
+    const errorMessage = error.message.includes('Failed to fetch') 
+      ? 'Unable to load questions. Please check your internet connection and try refreshing the page.'
+      : `Error loading questions: ${error.message}`;
+    
+    // Display error to user
+    const questionsContainer = document.getElementById('questions');
+    if (questionsContainer) {
+      questionsContainer.innerHTML = `
+        <li style="text-align: center; padding: 40px; color: #c0392b; background: #fee; border-radius: 8px; border-left: 3px solid #c0392b;">
+          <strong>Error Loading Questions</strong><br>
+          ${errorMessage}<br>
+          <button onclick="location.reload()" style="margin-top: 16px; padding: 8px 16px; background: #c0392b; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Try Again
+          </button>
+        </li>
+      `;
+    }
+    
+    throw error;
+  }
+}
 
 // Cache DB (IndexedDB for sustainability)
 let db;
@@ -298,13 +351,29 @@ request.onupgradeneeded = (e) => {
     ttsStore.createIndex('timestamp', 'timestamp', { unique: false });
   }
 };
-request.onsuccess = (e) => { 
+request.onsuccess = async (e) => { 
   db = e.target.result; 
-  loadQuestions(); 
+  
+  // Load questions from JSON file first
+  try {
+    questions = await loadQuestionsFromJSON();
+    loadQuestions(); 
+  } catch (error) {
+    console.error('Failed to load questions:', error);
+    // Error message is already displayed by loadQuestionsFromJSON
+  }
 };
-request.onerror = (e) => {
+request.onerror = async (e) => {
   console.error('IndexedDB error:', e);
-  loadQuestions(); // Load questions anyway
+  
+  // Load questions anyway, even if IndexedDB fails
+  try {
+    questions = await loadQuestionsFromJSON();
+    loadQuestions(); 
+  } catch (error) {
+    console.error('Failed to load questions:', error);
+    // Error message is already displayed by loadQuestionsFromJSON
+  }
 };
 
 // Simple fuzzy search function
@@ -429,7 +498,8 @@ async function loadExplanation(id) {
   }
 }
 
-
+// Attach loadExplanation to window for global access
+window.loadExplanation = loadExplanation;
 
 // Generate explanations via Venice chat
 async function generateExplanations(id) {
@@ -595,7 +665,8 @@ async function playTTS(id, lang) {
   }
 }
 
-
+// Attach playTTS to window for global access
+window.playTTS = playTTS;
 
 // Setup tabs for language switching
 function setupTabs(id, data) {
