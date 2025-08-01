@@ -267,7 +267,7 @@ function transformQuestion(jsonQuestion) {
   return {
     id: jsonQuestion.id,
     question: jsonQuestion.question,
-    answer: jsonQuestion.answers.join('; ')
+    answer: jsonQuestion.answers[0] // Use only the first answer instead of joining all answers
   };
 }
 
