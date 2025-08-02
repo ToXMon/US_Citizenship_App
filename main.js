@@ -783,8 +783,8 @@ async function testApiConnection() {
   }
 }
 
-// Run API test
-testApiConnection();
+// Removed automatic API test to prevent distracting error messages for users
+// testApiConnection();
 
 // Debug: Verify functions are globally accessible
 console.log('Global function check:');
