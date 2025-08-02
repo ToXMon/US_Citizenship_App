@@ -76,13 +76,17 @@
 
       .question {
         background: #fff;
-        margin-bottom: 16px;
-        padding: 20px;
+        margin-bottom: 18px; /* Slightly more spacing */
+        padding: 24px; /* More padding for better touch targets */
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         cursor: pointer;
         transition: all 0.3s ease;
         border-left: 4px solid #667eea;
+        min-height: 60px; /* Minimum height for better touch targets */
+        display: flex;
+        align-items: flex-start;
+        flex-direction: column;
       }
 
       .question:hover {
@@ -112,15 +116,16 @@
 
       .question-title {
         font-weight: 600;
-        font-size: 1.1rem;
-        line-height: 1.4;
+        font-size: 1.2rem; /* Slightly larger for better readability */
+        line-height: 1.5; /* Better line spacing */
         color: #2c3e50;
       }
 
       .question-number {
         color: #667eea;
         font-weight: 700;
-        margin-right: 8px;
+        font-size: 1.1rem; /* Slightly larger */
+        margin-right: 10px;
       }
 
       .details {
@@ -183,12 +188,18 @@
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
         border: none;
-        padding: 10px 20px;
+        padding: 12px 20px; /* Slightly larger padding */
         cursor: pointer;
         border-radius: 8px;
         font-weight: 500;
+        font-size: 1rem; /* Explicit font size for consistency */
         transition: all 0.3s ease;
         box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        min-height: 44px; /* Better touch target */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
       }
 
       button:hover {
@@ -254,23 +265,178 @@
 
       @media (max-width: 600px) {
         body {
-          padding: 10px;
+          padding: 8px;
+          font-size: 18px; /* Larger base font size for better readability */
         }
 
         .container {
-          padding: 20px;
+          padding: 16px;
         }
 
         h1 {
-          font-size: 2rem;
+          font-size: 2.2rem;
+          margin-bottom: 20px;
         }
 
+        .header-subtitle {
+          font-size: 1.2rem;
+          margin-bottom: 24px;
+        }
+
+        #search {
+          font-size: 18px;
+          padding: 20px;
+          margin-bottom: 24px;
+          border-radius: 16px;
+        }
+
+        /* Enhanced card-style questions for mobile */
+        .question {
+          margin-bottom: 20px;
+          padding: 24px;
+          border-radius: 16px;
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+          border-left: 6px solid #667eea;
+          background: #fff;
+          transition: all 0.3s ease;
+        }
+
+        .question:hover, .question:active {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .question-title {
+          font-size: 1.3rem;
+          line-height: 1.5;
+          font-weight: 600;
+          color: #2c3e50;
+          margin-bottom: 4px;
+        }
+
+        .question-number {
+          font-size: 1.4rem;
+          font-weight: 700;
+          color: #667eea;
+          margin-right: 12px;
+          display: inline-block;
+          min-width: 40px;
+        }
+
+        /* Enhanced details section for mobile */
+        .details {
+          margin-top: 24px;
+          padding-top: 24px;
+        }
+
+        .answer {
+          font-size: 1.2rem;
+          font-weight: 600;
+          color: #27ae60;
+          margin-bottom: 20px;
+          padding: 16px;
+          background: #f8fffe;
+          border-radius: 12px;
+          border-left: 4px solid #27ae60;
+          line-height: 1.4;
+        }
+
+        .explanation {
+          font-size: 1.1rem;
+          line-height: 1.6;
+          color: #34495e;
+          margin: 20px 0;
+        }
+
+        /* Enhanced tabs for mobile */
+        .tabs {
+          display: flex;
+          gap: 16px;
+          margin: 24px 0 20px 0;
+          flex-wrap: wrap;
+        }
+
+        .tab {
+          padding: 12px 20px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          border-radius: 25px;
+          min-height: 48px; /* Better touch target */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex: 1;
+          min-width: 120px;
+        }
+
+        /* Enhanced buttons for mobile */
         .button-group {
+          display: flex;
           flex-direction: column;
+          gap: 16px;
+          margin-top: 20px;
         }
 
         button {
           width: 100%;
+          padding: 16px 24px;
+          font-size: 1.1rem;
+          font-weight: 600;
+          border-radius: 12px;
+          min-height: 56px; /* Better touch target for older users */
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+        }
+
+        button:hover {
+          transform: translateY(-2px);
+        }
+
+        /* Enhanced error messages for mobile */
+        .error-message {
+          font-size: 1.1rem;
+          padding: 16px;
+          border-radius: 12px;
+          margin-top: 16px;
+        }
+
+        /* Enhanced audio controls for mobile */
+        audio {
+          width: 100%;
+          margin-top: 16px;
+          border-radius: 12px;
+          height: 54px; /* Larger audio controls */
+        }
+
+        /* Improved loading indicator for mobile */
+        .loading {
+          width: 20px;
+          height: 20px;
+          border: 3px solid #ffffff;
+          margin-right: 10px;
+        }
+
+        /* Better spacing for mobile lists */
+        #questions {
+          padding: 0;
+          margin: 0;
+        }
+
+        /* Enhanced focus states for accessibility */
+        .question:focus,
+        button:focus,
+        .tab:focus,
+        #search:focus {
+          outline: 3px solid #667eea;
+          outline-offset: 2px;
+        }
+
+        /* Ensure text is readable with proper contrast */
+        .question.expanded {
+          border-left-color: #27ae60;
+          border-left-width: 6px;
         }
       }
     </style>
