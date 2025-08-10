@@ -263,6 +263,11 @@ const webSearchService = new WebSearchService(VENICE_API_KEY, VENICE_BASE);
 console.log('Translation service initialized with European Portuguese support');
 console.log('Web search service initialized for current information retrieval');
 
+// Test web search functionality on initialization
+setTimeout(() => {
+  webSearchService.testWebSearchCapability();
+}, 2000);
+
 // Questions array - will be populated from JSON file
 let questions = [];
 
