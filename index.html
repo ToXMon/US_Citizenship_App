@@ -140,6 +140,23 @@
         border-left: 3px solid #27ae60;
       }
 
+      .web-search-answer {
+        background: #fff8e1;
+        border-left-color: #ff9800;
+        color: #e65100;
+      }
+
+      .current-answer {
+        background: #e8f5e8;
+        border-left-color: #4caf50;
+        color: #2e7d32;
+      }
+
+      .loading-current {
+        font-style: italic;
+        color: #ff9800;
+      }
+
       .explanation {
         margin: 16px 0;
         line-height: 1.6;
@@ -292,6 +309,7 @@
       <ul id="questions"></ul>
     </div>
 
+    <script src="web-search-service.js"></script>
     <script src="main.js?v=3"></script>
     <script>
       if ("serviceWorker" in navigator) {
