@@ -59,17 +59,21 @@ class WebSearchService {
 
   // Questions that require web search for current information
   isWebSearchQuestion(questionId) {
-    const webSearchQuestions = [28, 29, 39, 40, 46, 47];
+    const webSearchQuestions = [20, 23, 28, 29, 39, 40, 43, 44, 46, 47];
     return webSearchQuestions.includes(questionId);
   }
 
   // Get current answer using web search
   async getCurrentAnswer(questionId, question) {
     const searchQueries = {
+      20: "current US Senators from New Jersey 2025 Cory Booker Andy Kim",
+      23: "current US House Representatives from New Jersey 2025 congressional delegation",
       28: "who is the current President of the United States January 2025",
       29: "who is the current Vice President of the United States January 2025", 
       39: "how many Supreme Court justices are there currently 2025",
       40: "who is the current Chief Justice of the Supreme Court United States 2025",
+      43: "current Governor of New Jersey 2025 Phil Murphy",
+      44: "capital city of New Jersey state Trenton",
       46: "what political party is the current President of the United States 2025",
       47: "who is the current Speaker of the House of Representatives 2025"
     };
@@ -108,10 +112,14 @@ class WebSearchService {
   }
 
   async performWebSearch(question, searchQuery, model) {
-    const prompt = `You are an AI assistant with access to current web information. Search for and provide the most up-to-date answer to this US citizenship question.
+    // Determine if this is a New Jersey-specific question
+    const isNJQuestion = question.includes("your state") || question.includes("Governor of your state") || question.includes("capital of your state") || question.includes("your U.S. Representative") || question.includes("state's U.S. Senators");
+    
+    const prompt = `You are an AI assistant with access to current web information. Search for and provide the most up-to-date answer to this US citizenship question${isNJQuestion ? ' for New Jersey residents' : ''}.
 
 Question: ${question}
 Search focus: ${searchQuery}
+${isNJQuestion ? '\nIMPORTANT: This question is being answered specifically for residents of New Jersey.' : ''}
 
 Please provide ONLY the direct answer to the question based on current, verified information from reliable sources. Do not include explanations or additional text - just the factual answer.
 
@@ -119,6 +127,7 @@ Example format:
 - For "Who is the current President?": "Donald Trump"
 - For "How many justices are on the Supreme Court?": "9"
 - For "What is the current President's political party?": "Republican Party"
+${isNJQuestion ? '- For "Who is the Governor of your state?" (NJ): "Phil Murphy"\n- For "What is the capital of your state?" (NJ): "Trenton"\n- For "Who is one of your state\'s U.S. Senators?" (NJ): "Cory Booker" or "Andy Kim"' : ''}
 
 Answer:`;
 
@@ -257,6 +266,15 @@ Answer:`;
     // Question-specific validation
     if (question.includes('President') && !answer.match(/[A-Z][a-z]+ [A-Z][a-z]+/)) {
       return false; // Should contain a name-like pattern
+    }
+    
+    // New Jersey-specific validations
+    if (question.includes("capital of your state") && !lowerAnswer.includes('trenton')) {
+      return false; // Should be Trenton for NJ
+    }
+    
+    if (question.includes("Governor of your state") && !lowerAnswer.includes('murphy')) {
+      return false; // Should be Phil Murphy for NJ
     }
     
     return true;
