@@ -253,11 +253,225 @@ ${portugueseText}`
   }
 }
 
-// Initialize translation service
-const translationService = new TranslationService(VENICE_API_KEY, VENICE_BASE);
+// RAG Service for enhanced explanations with contextual information
+class RAGService {
+  constructor(apiKey, baseUrl) {
+    this.apiKey = apiKey;
+    this.baseUrl = baseUrl;
+  }
 
-// Test translation service initialization
+  async retrieveContextualInformation(question, answer) {
+    try {
+      console.log(`Retrieving contextual information for question: ${question.substring(0, 50)}...`);
+      
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          model: 'venice-uncensored',
+          messages: [{ 
+            role: 'system', 
+            content: `You are a US citizenship expert with access to current information about US civics, history, and government. Your task is to retrieve and provide relevant contextual information that would help someone understand a citizenship test question better.
+
+Focus on:
+- Historical context and background
+- Current relevant facts and figures
+- Legal and constitutional foundations
+- Real-world applications and examples
+- Connections to other civics concepts
+
+Provide comprehensive, factual information that goes beyond basic explanations.` 
+          }, {
+            role: 'user', 
+            content: `Retrieve comprehensive contextual information for this US citizenship question and answer:
+
+Question: ${question}
+Answer: ${answer}
+
+Provide detailed background information, historical context, current facts, legal foundations, and relevant examples that would help someone deeply understand this topic. Include specific dates, numbers, and examples where applicable.` 
+          }],
+          temperature: 0.3,
+          max_completion_tokens: 600
+        })
+      });
+
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
+
+      if (!response.ok) {
+        throw new Error(`RAG retrieval API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const contextualInfo = data.choices[0].message.content;
+      
+      console.log('Retrieved contextual information:', contextualInfo.substring(0, 100) + '...');
+      return contextualInfo;
+    } catch (error) {
+      console.error('RAG retrieval error:', error);
+      throw error;
+    }
+  }
+
+  async generateRAGExplanation(question, answer, contextualInfo) {
+    try {
+      console.log(`Generating RAG-enhanced explanation for: ${question.substring(0, 50)}...`);
+      
+      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          model: 'venice-uncensored',
+          messages: [{ 
+            role: 'system', 
+            content: `You are a US citizenship test expert who creates comprehensive, educational explanations by combining the official answer with relevant contextual information. 
+
+Create an explanation that:
+- Clearly explains why the answer is correct
+- Incorporates relevant contextual information naturally
+- Provides helpful background and examples
+- Is educational and easy to understand
+- Goes beyond generic responses with specific, factual details
+- Helps the student remember and understand the concept
+
+Keep the explanation concise but comprehensive, suitable for citizenship test preparation.` 
+          }, {
+            role: 'user', 
+            content: `Create a comprehensive explanation for this US citizenship question using the provided contextual information:
+
+Question: ${question}
+Official Answer: ${answer}
+
+Contextual Information:
+${contextualInfo}
+
+Generate a well-structured, educational explanation that combines the official answer with the contextual information to help someone studying for the citizenship test.` 
+          }],
+          temperature: 0.4,
+          max_completion_tokens: 400
+        })
+      });
+
+      if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
+
+      if (!response.ok) {
+        throw new Error(`RAG generation API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const ragExplanation = data.choices[0].message.content;
+      
+      console.log('Generated RAG explanation:', ragExplanation.substring(0, 100) + '...');
+      return ragExplanation;
+    } catch (error) {
+      console.error('RAG explanation generation error:', error);
+      throw error;
+    }
+  }
+
+  async getCachedRAGData(questionId) {
+    if (!db) return null;
+    
+    return new Promise(resolve => {
+      try {
+        const tx = db.transaction('rag_explanations', 'readonly');
+        const store = tx.objectStore('rag_explanations');
+        const req = store.get(questionId);
+        req.onsuccess = () => {
+          const result = req.result;
+          if (result && result.data) {
+            console.log(`Retrieved cached RAG data for question ${questionId}`);
+            resolve(result.data);
+          } else {
+            resolve(null);
+          }
+        };
+        req.onerror = (e) => {
+          console.error('RAG cache retrieval error:', e);
+          resolve(null);
+        };
+      } catch (e) {
+        console.error('RAG cache retrieval error:', e);
+        resolve(null);
+      }
+    });
+  }
+
+  async cacheRAGData(questionId, ragData) {
+    if (!db) return;
+    
+    return new Promise(resolve => {
+      try {
+        const tx = db.transaction('rag_explanations', 'readwrite');
+        const store = tx.objectStore('rag_explanations');
+        const req = store.put({ 
+          id: questionId, 
+          data: ragData,
+          timestamp: Date.now()
+        });
+        req.onsuccess = () => {
+          console.log(`Cached RAG data for question ${questionId}`);
+          resolve(true);
+        };
+        req.onerror = (e) => {
+          console.error('Failed to cache RAG data:', e);
+          resolve(false);
+        };
+      } catch (e) {
+        console.error('Failed to cache RAG data:', e);
+        resolve(false);
+      }
+    });
+  }
+
+  async generateEnhancedExplanation(question, answer, questionId) {
+    try {
+      // Check cache first
+      const cachedRAGData = await this.getCachedRAGData(questionId);
+      if (cachedRAGData) {
+        console.log(`Using cached RAG explanation for question ${questionId}`);
+        return cachedRAGData;
+      }
+
+      // Step 1: Retrieve contextual information
+      const contextualInfo = await this.retrieveContextualInformation(question, answer);
+      
+      // Step 2: Generate RAG-enhanced explanation
+      const ragExplanation = await this.generateRAGExplanation(question, answer, contextualInfo);
+      
+      // Step 3: Cache the result
+      const ragData = {
+        explanation: ragExplanation,
+        contextualInfo: contextualInfo,
+        timestamp: Date.now()
+      };
+      
+      await this.cacheRAGData(questionId, ragData);
+      
+      return ragData;
+    } catch (error) {
+      console.error('Enhanced explanation generation error:', error);
+      throw error;
+    }
+  }
+}
+
+// Initialize services
+const translationService = new TranslationService(VENICE_API_KEY, VENICE_BASE);
+const ragService = new RAGService(VENICE_API_KEY, VENICE_BASE);
+
+// Test services initialization
 console.log('Translation service initialized with European Portuguese support');
+console.log('RAG service initialized for enhanced contextual explanations');
 
 // Questions array - will be populated from JSON file
 let questions = [];
@@ -329,7 +543,7 @@ async function loadQuestionsFromJSON() {
 
 // Cache DB (IndexedDB for sustainability)
 let db;
-const request = indexedDB.open('CitizenshipDB', 3);
+const request = indexedDB.open('CitizenshipDB', 4);
 request.onupgradeneeded = (e) => {
   db = e.target.result;
   const oldVersion = e.oldVersion;
@@ -349,6 +563,13 @@ request.onupgradeneeded = (e) => {
   if (!db.objectStoreNames.contains('tts_formatted')) {
     const ttsStore = db.createObjectStore('tts_formatted', { keyPath: 'id' });
     ttsStore.createIndex('timestamp', 'timestamp', { unique: false });
+  }
+  
+  // Create RAG explanations store for enhanced contextual explanations
+  if (!db.objectStoreNames.contains('rag_explanations')) {
+    const ragStore = db.createObjectStore('rag_explanations', { keyPath: 'id' });
+    ragStore.createIndex('timestamp', 'timestamp', { unique: false });
+    console.log('Created RAG explanations store in IndexedDB');
   }
 };
 request.onsuccess = async (e) => { 
@@ -416,7 +637,7 @@ function loadQuestions(query = '') {
       <div class="details">
         <div class="answer">Answer: ${q.answer}</div>
         <div class="explanation" id="explanation-${q.id}">
-          <em>Click to load AI explanation...</em>
+          <em>Click to load enhanced AI explanation with contextual information...</em>
         </div>
         <div class="tabs">
           <div class="tab active" data-lang="en" data-id="${q.id}">English</div>
@@ -424,7 +645,7 @@ function loadQuestions(query = '') {
         </div>
         <div class="button-group">
           <button data-action="load-explanation" data-id="${q.id}" id="load-btn-${q.id}">
-            🤖 Load AI Explanation
+            🧠 Load Enhanced AI Explanation
           </button>
           <button data-action="play-tts" data-id="${q.id}" data-lang="en" id="tts-en-${q.id}">
             🔊 Play English
@@ -493,7 +714,7 @@ async function loadExplanation(id) {
   } catch (error) {
     console.error('Error loading explanation:', error);
     showError(id, 'Failed to load explanation. Please try again.');
-    loadBtn.innerHTML = '🤖 Load AI Explanation';
+    loadBtn.innerHTML = '🧠 Load Enhanced AI Explanation';
     loadBtn.disabled = false;
   }
 }
@@ -501,45 +722,16 @@ async function loadExplanation(id) {
 // Attach loadExplanation to window for global access
 window.loadExplanation = loadExplanation;
 
-// Generate explanations via Venice chat
+// Generate explanations via Venice chat with RAG enhancement
 async function generateExplanations(id) {
   const q = questions.find(q => q.id === id);
   if (!q) return null;
   
   try {
-    // English explanation
-    const enResp = await fetch(`${VENICE_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${VENICE_API_KEY}`,
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify({
-        model: 'venice-uncensored',
-        messages: [{ 
-          role: 'user', 
-          content: `Provide a clear, educational explanation for this US citizenship question and answer. Keep it concise but informative, suitable for someone studying for the citizenship test:
-
-Question: ${q.question}
-Answer: ${q.answer}
-
-Please explain why this answer is correct and provide helpful context.` 
-        }],
-        temperature: 0.7,
-        max_completion_tokens: 300
-      })
-    });
-    
-    if (enResp.status === 429) {
-      throw new Error('Rate limit exceeded. Please wait a moment and try again.');
-    }
-    
-    if (!enResp.ok) {
-      throw new Error(`API error: ${enResp.status}`);
-    }
-    
-    const enData = await enResp.json();
-    const enExp = enData.choices[0].message.content;
+    // Use RAG service for enhanced explanations
+    console.log(`Generating enhanced RAG explanation for question ${id}`);
+    const ragData = await ragService.generateEnhancedExplanation(q.question, q.answer, id);
+    const enExp = ragData.explanation;
 
     // European Portuguese translation using TranslationService
     let ptExp;
@@ -551,7 +743,7 @@ Please explain why this answer is correct and provide helpful context.`
         ptExp = cachedTranslation;
       } else {
         console.log(`Generating new Portuguese translation for question ${id}`);
-        // Generate new translation
+        // Generate new translation using the RAG-enhanced explanation
         ptExp = await translationService.translateExplanation(enExp);
         // Cache the translation
         await translationService.cacheTranslation(id, ptExp);
@@ -564,8 +756,53 @@ Please explain why this answer is correct and provide helpful context.`
 
     return { en: enExp, pt: ptExp };
   } catch (err) {
-    console.error('API Error:', err);
-    throw err;
+    console.error('RAG API Error:', err);
+    
+    // Fallback to basic explanation if RAG fails
+    console.log('Falling back to basic explanation generation');
+    try {
+      const enResp = await fetch(`${VENICE_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${VENICE_API_KEY}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          model: 'venice-uncensored',
+          messages: [{ 
+            role: 'user', 
+            content: `Provide a clear, educational explanation for this US citizenship question and answer. Keep it concise but informative, suitable for someone studying for the citizenship test:
+
+Question: ${q.question}
+Answer: ${q.answer}
+
+Please explain why this answer is correct and provide helpful context.` 
+          }],
+          temperature: 0.7,
+          max_completion_tokens: 300
+        })
+      });
+      
+      if (enResp.ok) {
+        const enData = await enResp.json();
+        const enExp = enData.choices[0].message.content;
+        
+        // Generate Portuguese translation for fallback explanation
+        let ptExp;
+        try {
+          ptExp = await translationService.translateExplanation(enExp);
+        } catch (error) {
+          ptExp = 'Translation not available. Please try again.';
+        }
+        
+        return { en: enExp, pt: ptExp };
+      } else {
+        throw err;
+      }
+    } catch (fallbackErr) {
+      console.error('Fallback explanation also failed:', fallbackErr);
+      throw err;
+    }
   }
 }
 
