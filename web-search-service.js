@@ -5,13 +5,13 @@ class WebSearchService {
   constructor(apiKey, baseUrl) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
-    // Web search enabled models in Venice AI (based on actual Venice API offerings)
+    // Web search enabled models in Venice AI (based on actual Venice API response)
     this.webSearchModels = [
-      'claude-3-sonnet-20240229',  // Claude 3 Sonnet with web search
-      'claude-3-haiku-20240307',   // Claude 3 Haiku with web search  
-      'gpt-4o',                    // GPT-4o with web search
-      'gpt-4-turbo',               // GPT-4 Turbo with web search
-      'venice-uncensored'          // Fallback to standard model
+      'llama-3.2-3b',              // Llama 3.2 3B - fastest, cost-effective (0.15/0.6)
+      'qwen3-4b',                  // Venice Small - fast and cost-effective (0.15/0.6)
+      'venice-uncensored',         // Venice Uncensored 1.1 (0.5/2)
+      'qwen-2.5-qwq-32b',          // Venice Reasoning - advanced reasoning (0.5/2)
+      'mistral-31-24b'             // Venice Medium - vision + web search (0.5/2)
     ];
     this.currentModel = this.webSearchModels[0]; // Start with primary model
   }
@@ -219,7 +219,7 @@ Keep the explanation concise but informative, suitable for someone studying for 
           'Content-Type': 'application/json' 
         },
         body: JSON.stringify({
-          model: this.currentModel.includes('web') ? this.currentModel : 'venice-uncensored',
+          model: this.currentModel,
           messages: [{ 
             role: 'user', 
             content: prompt
