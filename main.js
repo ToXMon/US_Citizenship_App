@@ -256,8 +256,12 @@ ${portugueseText}`
 // Initialize translation service
 const translationService = new TranslationService(VENICE_API_KEY, VENICE_BASE);
 
-// Test translation service initialization
+// Initialize web search service
+const webSearchService = new WebSearchService(VENICE_API_KEY, VENICE_BASE);
+
+// Test services initialization
 console.log('Translation service initialized with European Portuguese support');
+console.log('Web search service initialized for current information retrieval');
 
 // Questions array - will be populated from JSON file
 let questions = [];
@@ -395,7 +399,7 @@ function fuzzySearch(query, questions) {
 }
 
 // Load questions
-function loadQuestions(query = '') {
+async function loadQuestions(query = '') {
   const ul = document.getElementById('questions');
   ul.innerHTML = '';
   
@@ -406,15 +410,26 @@ function loadQuestions(query = '') {
     return;
   }
   
-  filtered.forEach(q => {
+  // Process each question
+  for (const q of filtered) {
     const li = document.createElement('li');
     li.className = 'question';
+    
+    // Check if this is a web search question and get current answer
+    let displayAnswer = q.answer;
+    let answerClass = 'answer';
+    
+    if (webSearchService.isWebSearchQuestion(q.id)) {
+      answerClass = 'answer web-search-answer';
+      displayAnswer = `<span class="loading-current">🔍 Loading current information...</span>`;
+    }
+    
     li.innerHTML = `
       <div class="question-title">
         <span class="question-number">${q.id}.</span>${q.question}
       </div>
       <div class="details">
-        <div class="answer">Answer: ${q.answer}</div>
+        <div class="${answerClass}" id="answer-${q.id}">Answer: ${displayAnswer}</div>
         <div class="explanation" id="explanation-${q.id}">
           <em>Click to load AI explanation...</em>
         </div>
@@ -438,9 +453,6 @@ function loadQuestions(query = '') {
       </div>
     `;
     
-    // Debug: Log the generated HTML to verify no onclick attributes (commented out to reduce console noise)
-    // console.log('Generated HTML for question', q.id, ':', li.innerHTML.substring(0, 200));
-    
     li.addEventListener('click', (e) => {
       if (e.target.tagName === 'BUTTON') {
         const action = e.target.dataset.action;
@@ -458,7 +470,33 @@ function loadQuestions(query = '') {
     });
     
     ul.appendChild(li);
-  });
+    
+    // Load current answer for web search questions
+    if (webSearchService.isWebSearchQuestion(q.id)) {
+      loadCurrentAnswer(q.id, q.question);
+    }
+  }
+}
+
+// Load current answer for web search questions
+async function loadCurrentAnswer(questionId, question) {
+  try {
+    const currentAnswer = await webSearchService.getCurrentAnswer(questionId, question);
+    const answerDiv = document.getElementById(`answer-${questionId}`);
+    if (answerDiv) {
+      answerDiv.innerHTML = `Current Answer: ${currentAnswer}`;
+      answerDiv.classList.remove('web-search-answer');
+      answerDiv.classList.add('current-answer');
+    }
+  } catch (error) {
+    console.error('Failed to get current answer:', error);
+    const answerDiv = document.getElementById(`answer-${questionId}`);
+    if (answerDiv) {
+      const q = questions.find(q => q.id === questionId);
+      answerDiv.innerHTML = `Answer: ${q.answer} <em>(Check uscis.gov for most current information)</em>`;
+      answerDiv.classList.remove('web-search-answer');
+    }
+  }
 }
 
 // Toggle expand - explicitly attach to window for global access
@@ -507,39 +545,47 @@ async function generateExplanations(id) {
   if (!q) return null;
   
   try {
-    // English explanation
-    const enResp = await fetch(`${VENICE_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${VENICE_API_KEY}`,
-        'Content-Type': 'application/json' 
-      },
-      body: JSON.stringify({
-        model: 'venice-uncensored',
-        messages: [{ 
-          role: 'user', 
-          content: `Provide a clear, educational explanation for this US citizenship question and answer. Keep it concise but informative, suitable for someone studying for the citizenship test:
+    let enExp;
+    
+    // Check if this is a web search question
+    if (webSearchService.isWebSearchQuestion(id)) {
+      console.log(`Generating web search enhanced explanation for question ${id}`);
+      enExp = await webSearchService.generateWebSearchEnhancedExplanation(id, q.question, q.answer);
+    } else {
+      // Regular explanation generation
+      const enResp = await fetch(`${VENICE_BASE}/chat/completions`, {
+        method: 'POST',
+        headers: { 
+          'Authorization': `Bearer ${VENICE_API_KEY}`,
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({
+          model: 'venice-uncensored',
+          messages: [{ 
+            role: 'user', 
+            content: `Provide a clear, educational explanation for this US citizenship question and answer. Keep it concise but informative, suitable for someone studying for the citizenship test:
 
 Question: ${q.question}
 Answer: ${q.answer}
 
 Please explain why this answer is correct and provide helpful context.` 
-        }],
-        temperature: 0.7,
-        max_completion_tokens: 300
-      })
-    });
-    
-    if (enResp.status === 429) {
-      throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+          }],
+          temperature: 0.7,
+          max_completion_tokens: 300
+        })
+      });
+      
+      if (enResp.status === 429) {
+        throw new Error('Rate limit exceeded. Please wait a moment and try again.');
+      }
+      
+      if (!enResp.ok) {
+        throw new Error(`API error: ${enResp.status}`);
+      }
+      
+      const enData = await enResp.json();
+      enExp = enData.choices[0].message.content;
     }
-    
-    if (!enResp.ok) {
-      throw new Error(`API error: ${enResp.status}`);
-    }
-    
-    const enData = await enResp.json();
-    const enExp = enData.choices[0].message.content;
 
     // European Portuguese translation using TranslationService
     let ptExp;
@@ -597,11 +643,32 @@ async function playTTS(id, lang) {
     } else {
       // No cached explanation, use question and answer
       if (lang === 'en') {
-        text = `Question: ${q.question} Answer: ${q.answer}`;
+        // For web search questions, try to get current answer
+        if (webSearchService.isWebSearchQuestion(id)) {
+          try {
+            const currentAnswer = await webSearchService.getCurrentAnswer(id, q.question);
+            text = `Question: ${q.question} Current Answer: ${currentAnswer}`;
+          } catch (error) {
+            console.warn('Could not get current answer for TTS:', error);
+            text = `Question: ${q.question} Answer: ${q.answer}`;
+          }
+        } else {
+          text = `Question: ${q.question} Answer: ${q.answer}`;
+        }
       } else {
         // For Portuguese, translate on the fly using TranslationService
         try {
-          text = await translationService.translateQuestionAndAnswer(q.question, q.answer);
+          if (webSearchService.isWebSearchQuestion(id)) {
+            try {
+              const currentAnswer = await webSearchService.getCurrentAnswer(id, q.question);
+              text = await translationService.translateQuestionAndAnswer(q.question, currentAnswer);
+            } catch (error) {
+              console.warn('Could not get current answer for Portuguese TTS:', error);
+              text = await translationService.translateQuestionAndAnswer(q.question, q.answer);
+            }
+          } else {
+            text = await translationService.translateQuestionAndAnswer(q.question, q.answer);
+          }
         } catch (error) {
           throw new Error(`Translation failed: ${error.message}`);
         }
