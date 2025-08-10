@@ -25,12 +25,12 @@ class WebSearchService {
   // Get current answer using web search
   async getCurrentAnswer(questionId, question) {
     const searchQueries = {
-      28: "current President of the United States 2024 2025",
-      29: "current Vice President of the United States 2024 2025", 
-      39: "number of Supreme Court justices 2024 2025",
-      40: "current Chief Justice Supreme Court United States 2024 2025",
-      46: "current President political party 2024 2025",
-      47: "current Speaker of the House Representatives 2024 2025"
+      28: "who is the current President of the United States January 2025",
+      29: "who is the current Vice President of the United States January 2025", 
+      39: "how many Supreme Court justices are there currently 2025",
+      40: "who is the current Chief Justice of the Supreme Court United States 2025",
+      46: "what political party is the current President of the United States 2025",
+      47: "who is the current Speaker of the House of Representatives 2025"
     };
 
     const searchQuery = searchQueries[questionId];
@@ -42,15 +42,16 @@ class WebSearchService {
       // Try each web search model until one works
       for (const model of this.webSearchModels) {
         try {
-          console.log(`Attempting web search with model: ${model}`);
+          console.log(`Attempting web search with model: ${model}:web-search`);
           const result = await this.performWebSearch(question, searchQuery, model);
           if (result) {
-            console.log(`Web search successful with model: ${model}`);
+            console.log(`Web search successful with model: ${model}:web-search`);
+            console.log(`Result: ${result}`);
             this.currentModel = model; // Remember working model
             return result;
           }
         } catch (error) {
-          console.warn(`Model ${model} failed:`, error.message);
+          console.warn(`Model ${model}:web-search failed:`, error.message);
           continue;
         }
       }
@@ -74,9 +75,9 @@ Search focus: ${searchQuery}
 Please provide ONLY the direct answer to the question based on current, verified information from reliable sources. Do not include explanations or additional text - just the factual answer.
 
 Example format:
-- For "Who is the current President?": "Joe Biden"
+- For "Who is the current President?": "Donald Trump"
 - For "How many justices are on the Supreme Court?": "9"
-- For "What is the current President's political party?": "Democratic Party"
+- For "What is the current President's political party?": "Republican Party"
 
 Answer:`;
 
@@ -87,13 +88,18 @@ Answer:`;
         'Content-Type': 'application/json' 
       },
       body: JSON.stringify({
-        model: model,
+        model: `${model}:web-search`, // Enable web search using model suffix
         messages: [{ 
           role: 'user', 
           content: prompt
         }],
         temperature: 0.1, // Low temperature for factual accuracy
-        max_completion_tokens: 100
+        max_completion_tokens: 100,
+        venice_parameters: {
+          enable_web_search: "auto",
+          enable_web_citations: true,
+          include_venice_system_prompt: true
+        }
       })
     });
 
@@ -102,10 +108,13 @@ Answer:`;
     }
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`API error ${response.status}:`, errorText);
       throw new Error(`API error: ${response.status} - ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('API response data:', JSON.stringify(data, null, 2));
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       throw new Error('Invalid response format from API');
@@ -141,13 +150,18 @@ Answer:`;
         'Content-Type': 'application/json' 
       },
       body: JSON.stringify({
-        model: 'venice-uncensored', // Use the known working model
+        model: 'venice-uncensored:web-search', // Use web search enabled model
         messages: [{ 
           role: 'user', 
           content: prompt
         }],
         temperature: 0.1,
-        max_completion_tokens: 150
+        max_completion_tokens: 150,
+        venice_parameters: {
+          enable_web_search: "auto",
+          enable_web_citations: false,
+          include_venice_system_prompt: true
+        }
       })
     });
 
@@ -219,13 +233,18 @@ Keep the explanation concise but informative, suitable for someone studying for 
           'Content-Type': 'application/json' 
         },
         body: JSON.stringify({
-          model: this.currentModel,
+          model: `${this.currentModel}:web-search`,
           messages: [{ 
             role: 'user', 
             content: prompt
           }],
           temperature: 0.7,
-          max_completion_tokens: 400
+          max_completion_tokens: 400,
+          venice_parameters: {
+            enable_web_search: "auto",
+            enable_web_citations: true,
+            include_venice_system_prompt: true
+          }
         })
       });
 
